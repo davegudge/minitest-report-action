@@ -6,7 +6,7 @@ A GitHub Action that reports Minitest failures.
 
 ## Usage
 
-This action utilises the Minitest test in a json format. Minitest does not appear to have [a built in] option to output to a json file. json output can be achieve by adding the following to the `Gemfile`:
+This action utilises the json results of Minitest. Minitest does not appear to have a built in option to output to a json file. json output can be achieved by adding the following to the `Gemfile`:
 
 ```ruby
   gem "minitest-reporters-json_reporter", github: "davegudge/minitest-reporters-json_reporter", branch: "write-to-file"
@@ -29,8 +29,6 @@ Minitest::Reporters.use! [Minitest::Reporters::JsonReporter.new(reports_dir: "tm
 ```
 
 ## Example
-
-Below is an example of how to use setup the GitHub action:
 
 ### Inputs
 

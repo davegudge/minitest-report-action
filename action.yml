@@ -1,9 +1,9 @@
-name: "RSpec Report"
-description: "A GitHub Action that report RSpec failure."
+name: "Minitest Report"
+description: "A GitHub Action that reports Minitest failure."
 branding:
   icon: alert-triangle
   color: red
-author: "aki77"
+author: "davegudge"
 inputs:
   token:
     description: "Github token"
@@ -13,7 +13,7 @@ inputs:
     required: true
   title:
     description: "Title"
-    default: "# :cold_sweat: RSpec failure"
+    default: "# :x: Minitest failure"
     required: false
 runs:
   using: "node12"

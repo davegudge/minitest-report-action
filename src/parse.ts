@@ -1,41 +1,60 @@
 import path from 'path'
 
-interface Exception {
-  class: string
-  message: string
-  backtrace: string[]
-}
-
-interface Example {
-  id: string
-  description: string
-  full_description: string
-  status: 'passed' | 'failed'
-  file_path: string
-  line_number: number
-  run_time: number
-  pending_message: string | null
-  exception?: Exception
-}
-
 interface JsonResult {
-  examples: Example[]
-  summary_line: string
+  status: Status
+  metadata: MetaData
+  statistics: Statistics
+  fails: Failure[]
 }
 
-type FailureExample = {
-  example: string
-  description: string
+interface Failure {
+  type: string
+  class: string
+  name: string
+  assertions: number
+  time: number
+  file: string
+  line_number: number
+  message: string
+  location: string
+}
+
+interface Statistics {
+  total: number
+  assertions: number
+  failures: number
+  errors: number
+  skips: number
+  passes: number
+}
+
+interface MetaData {
+  generated_by: string
+  version: string
+  ruby_version: string
+  ruby_patchlevel: number
+  ruby_platform: string
+  time: string
+}
+
+interface Status {
+  code: string
+  color: string
+}
+
+type FailureOutput = {
+  name: string
+  location: string
   message: string
 }
 
-export type RspecResult = {
-  examples: FailureExample[]
+export type MinitestResult = {
+  failures: FailureOutput[]
   summary: string
   success: boolean
 }
 
-export function parse(resultPath: string): RspecResult {
+export function parse(resultPath: string): MinitestResult {
   // eslint-disable-next-line import/no-dynamic-require,@typescript-eslint/no-var-requires,@typescript-eslint/no-require-imports
   const json = require(path.resolve(
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
@@ -43,20 +62,19 @@ export function parse(resultPath: string): RspecResult {
     resultPath
   )) as JsonResult
 
-  const examples: FailureExample[] = json.examples
-    .filter(({status}) => status === 'failed')
-    .map(({file_path, line_number, full_description, exception}) => {
+  const failures: FailureOutput[] = json.fails.map(
+    ({name, location, message}) => {
       return {
-        description: full_description,
-        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-        message: exception!.message,
-        example: [file_path, line_number].join(':')
+        name,
+        location,
+        message
       }
-    })
+    }
+  )
 
   return {
-    examples,
-    summary: json.summary_line,
-    success: examples.length === 0
+    failures,
+    summary: `${json.statistics.assertions} assertions, ${json.statistics.failures} failures`,
+    success: failures.length === 0
   }
 }

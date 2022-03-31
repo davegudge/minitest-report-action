@@ -1,34 +1,41 @@
 import * as path from 'path'
 import {parse} from '../src/parse'
-import {example2Table} from '../src/table'
+import {failuresTable} from '../src/table'
 import {expect, test} from '@jest/globals'
 
-test('Parse rspec result json', async () => {
-  const result = await parse(path.resolve(__dirname, '../.dummy_results.json'))
+test('Parse minitest result json', async () => {
+  const result = await parse(
+    path.resolve(__dirname, '../.example_results.json')
+  )
   expect(result).toEqual({
-    summary: '25 examples, 1 failure',
-    examples: [
+    failures: [
       {
-        example: './spec/activestorage/validator/blob_spec.rb:37',
-        description:
-          'ActiveRecord::Validations::BlobValidator with size_range option 1.4MB is expected to eq true',
-        message: '\nexpected: true\n     got: false\n\n(compared using ==)'
+        location: 'test/models/user_test.rb:25',
+        message: 'Expected false to be truthy.',
+        name: 'test_account_remains_confirmed_when_setting_an_unconfirmed_email_address'
+      },
+      {
+        location: 'test/models/user_test.rb:18',
+        message:
+          'Expected: "9876543213@domain.uk" Actual: "987654321@domain.uk"',
+        name: 'test_email_addresses_display'
       }
     ],
-    success: false
+    success: false,
+    summary: '23 assertions, 2 failures'
   })
 })
 
-test('example2Table', () => {
-  const examples = [
+test('failuresTable', () => {
+  const failures = [
     {
-      example: './dummy_spec.rb:1',
-      description: 'dummy',
-      message: 'error!\nerror!'
+      name: 'test_name',
+      location: './test_spec.rb:12',
+      message: 'an error message'
     }
   ]
-  expect(example2Table(examples))
-    .toEqual(`| Example           | Description | Message       |
-| ----------------- | ----------- | ------------- |
-| ./dummy_spec.rb:1 | dummy       | error! error! |`)
+  expect(failuresTable(failures))
+    .toEqual(`| File              | Message          |
+| ----------------- | ---------------- |
+| ./test_spec.rb:12 | an error message |`)
 })

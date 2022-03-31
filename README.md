@@ -1,27 +1,41 @@
-# RSpec Report
+# Minitest Report
 
-A GitHub Action that report RSpec failure.
+A GitHub Action that reports Minitest failures.
 
-## Usage:
+![Example](https://user-images.githubusercontent.com/1736807/161021237-1c64cce7-edec-4943-92db-b18f92fcada8.png)
 
-### pull_request event
+## Usage
 
-Reported in issue comment.
+This action utilises the Minitest test in a json format. Minitest does not appear to have [a built in] option to output to a json file. json output can be achieve by adding the following to the `Gemfile`:
 
-![Demo](https://i.gyazo.com/29402af7cc01eaac256bb54a3ebe8049.png)
+```ruby
+  gem "minitest-reporters-json_reporter", github: "davegudge/minitest-reporters-json_reporter", branch: "write-to-file"
+```
 
-### other event
+And then executing:
 
-Reported in check runs.
+```ruby
+bundle install
+```
 
-![Demo](https://i.gyazo.com/9ab78f43d95155cd95fdf0f89f4cf3b0.png)
+The following will need to be addded to `spec_helper.rb` or `test_helper.rb`:
+
+```ruby
+require 'minitest/reporters/json_reporter'
+
+...
+
+Minitest::Reporters.use! [Minitest::Reporters::JsonReporter.new(reports_dir: "tmp/minitest")]
+```
+
+## Example
+
+Below is an example of how to use setup the GitHub action:
 
 ### Inputs
 
 - `token` - The GITHUB_TOKEN secret.
-- `json-path` - Path to RSpec result json file.
-
-## Example
+- `json-path` - Path to Minitest result json file.
 
 ```yaml
 name: Build
@@ -29,15 +43,14 @@ on:
   pull_request:
 
 jobs:
-  rspec:
+  tests:
     steps:
-      - name: Test
-        run: bundle exec rspec -f j -o tmp/rspec_results.json -f p
+      - name: Run Minitest
+        run: bin/rails test
 
-      - name: RSpec Report
-        uses: SonicGarden/rspec-report-action@v1
+      - name: Minitest Report
+        uses: davegudge/minitest-report-action@v1.0.0
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          json-path: tmp/rspec_results.json
-        if: always()
+          json-path: tmp/minitest/output.json
 ```

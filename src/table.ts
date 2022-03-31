@@ -1,12 +1,11 @@
-import type {RspecResult} from './parse'
+import type {MinitestResult} from './parse'
 import {markdownTable} from 'markdown-table'
 
-export function example2Table(examples: RspecResult['examples']): string {
+export function failuresTable(failures: MinitestResult['failures']): string {
   return markdownTable([
-    ['Example', 'Description', 'Message'],
-    ...examples.map(({example, description, message}) => [
-      example,
-      description,
+    ['File', 'Message'],
+    ...failures.map(({location, message}) => [
+      location,
       message.replace(/\n+/g, ' ')
     ])
   ])

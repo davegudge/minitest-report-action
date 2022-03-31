@@ -576,20 +576,17 @@ function parse(resultPath) {
     const json = require(path_1.default.resolve(
     // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
     process.env.GITHUB_WORKSPACE, resultPath));
-    const examples = json.examples
-        .filter(({ status }) => status === 'failed')
-        .map(({ file_path, line_number, full_description, exception }) => {
+    const failures = json.fails.map(({ name, location, message }) => {
         return {
-            description: full_description,
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-            message: exception.message,
-            example: [file_path, line_number].join(':')
+            name,
+            location,
+            message
         };
     });
     return {
-        examples,
-        summary: json.summary_line,
-        success: examples.length === 0
+        failures,
+        summary: `${json.statistics.assertions} assertions, ${json.statistics.failures} failures`,
+        success: failures.length === 0
     };
 }
 exports.parse = parse;
@@ -1029,22 +1026,22 @@ const core = __importStar(__webpack_require__(470));
 const github = __importStar(__webpack_require__(469));
 const table_1 = __webpack_require__(402);
 const reportChecks = (result) => __awaiter(void 0, void 0, void 0, function* () {
-    const icon = result.success ? ':tada:' : ':cold_sweat:';
+    const icon = result.success ? ':white_check_mark:' : ':x:';
     const summary = `${icon} ${result.summary}
 
-${table_1.example2Table(result.examples)}
+${table_1.failuresTable(result.failures)}
 `;
     yield github
         .getOctokit(core.getInput('token', { required: true }))
         .rest.checks.create({
         owner: github.context.repo.owner,
         repo: github.context.repo.repo,
-        name: 'RSpec Result',
+        name: 'Minitest Result',
         head_sha: github.context.sha,
         status: 'completed',
         conclusion: result.success ? 'success' : 'failure',
         output: {
-            title: 'RSpec Result',
+            title: 'Minitest Result',
             summary
         }
     });
@@ -1837,19 +1834,18 @@ exports.default = replaceComment;
 "use strict";
 
 Object.defineProperty(exports, "__esModule", { value: true });
-exports.example2Table = void 0;
+exports.failuresTable = void 0;
 const markdown_table_1 = __webpack_require__(366);
-function example2Table(examples) {
+function failuresTable(failures) {
     return markdown_table_1.markdownTable([
-        ['Example', 'Description', 'Message'],
-        ...examples.map(({ example, description, message }) => [
-            example,
-            description,
+        ['File', 'Message'],
+        ...failures.map(({ location, message }) => [
+            location,
             message.replace(/\n+/g, ' ')
         ])
     ]);
 }
-exports.example2Table = example2Table;
+exports.failuresTable = failuresTable;
 
 
 /***/ }),
@@ -6646,7 +6642,7 @@ const reportPR = (result) => __awaiter(void 0, void 0, void 0, function* () {
 <details>
 <summary>${result.summary}</summary>
 
-${table_1.example2Table(result.examples)}
+${table_1.failuresTable(result.failures)}
 
 </details>
 ` }));

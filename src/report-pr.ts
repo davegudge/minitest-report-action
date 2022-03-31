@@ -1,8 +1,8 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
 import replaceComment, {deleteComment} from '@aki77/actions-replace-comment'
-import type {RspecResult} from './parse'
-import {example2Table} from './table'
+import type {MinitestResult} from './parse'
+import {failuresTable} from './table'
 
 // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 const commentGeneralOptions = () => {
@@ -19,7 +19,7 @@ const commentGeneralOptions = () => {
   }
 }
 
-export const reportPR = async (result: RspecResult): Promise<void> => {
+export const reportPR = async (result: MinitestResult): Promise<void> => {
   const pullRequestId = github.context.issue.number
   if (!pullRequestId) {
     throw new Error('Cannot find the PR id.')
@@ -42,7 +42,7 @@ export const reportPR = async (result: RspecResult): Promise<void> => {
 <details>
 <summary>${result.summary}</summary>
 
-${example2Table(result.examples)}
+${failuresTable(result.failures)}
 
 </details>
 `

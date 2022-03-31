@@ -1,0 +1,60 @@
+{
+	"status": {
+		"code": "Failed",
+		"color": "red"
+	},
+	"metadata": {
+		"generated_by": "Minitest::Reporters::JsonReporter",
+		"version": "1.0.0",
+		"ruby_version": "2.7.5",
+		"ruby_patchlevel": 203,
+		"ruby_platform": "arm64-darwin21",
+		"time": "2022-03-30T10:06:24Z",
+		"options": {
+			"io": "STDOUT",
+			"color": true,
+			"output_inline": true,
+			"seed": 20257,
+			"args": "--seed 20257",
+			"total_count": 9,
+			"reports_dir": "tmp/minitest"
+		}
+	},
+	"statistics": {
+		"total": 9,
+		"assertions": 23,
+		"failures": 2,
+		"errors": 0,
+		"skips": 0,
+		"passes": 7
+	},
+	"timings": {
+		"total_seconds": 1.0578049999894574,
+		"runs_per_second": 8.508184400801374,
+		"assertions_per_second": 21.743137913159067
+	},
+	"fails": [
+		{
+			"type": "failed",
+			"class": "Minitest::Result",
+			"name": "test_account_remains_confirmed_when_setting_an_unconfirmed_email_address",
+			"assertions": 2,
+			"time": 0.002908000024035573,
+			"file": "test/models/user_test.rb",
+			"line_number": 21,
+			"message": "Expected false to be truthy.",
+			"location": "test/models/user_test.rb:25"
+		},
+		{
+			"type": "failed",
+			"class": "Minitest::Result",
+			"name": "test_email_addresses_display",
+			"assertions": 1,
+			"time": 0.18871100002434105,
+			"file": "test/models/user_test.rb",
+			"line_number": 16,
+			"message": "Expected: \"9876543213@domain.uk\" Actual: \"987654321@domain.uk\"",
+			"location": "test/models/user_test.rb:18"
+		}
+	]
+}

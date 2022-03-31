@@ -1,13 +1,13 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
-import type {RspecResult} from './parse'
-import {example2Table} from './table'
+import type {MinitestResult} from './parse'
+import {failuresTable} from './table'
 
-export const reportChecks = async (result: RspecResult): Promise<void> => {
-  const icon = result.success ? ':tada:' : ':cold_sweat:'
+export const reportChecks = async (result: MinitestResult): Promise<void> => {
+  const icon = result.success ? ':white_check_mark:' : ':x:'
   const summary = `${icon} ${result.summary}
 
-${example2Table(result.examples)}
+${failuresTable(result.failures)}
 `
 
   await github
@@ -15,12 +15,12 @@ ${example2Table(result.examples)}
     .rest.checks.create({
       owner: github.context.repo.owner,
       repo: github.context.repo.repo,
-      name: 'RSpec Result',
+      name: 'Minitest Result',
       head_sha: github.context.sha,
       status: 'completed',
       conclusion: result.success ? 'success' : 'failure',
       output: {
-        title: 'RSpec Result',
+        title: 'Minitest Result',
         summary
       }
     })

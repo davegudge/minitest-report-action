@@ -24,10 +24,10 @@
   dependencies:
     tunnel "0.0.6"
 
-"@aki77/actions-replace-comment@^0.5.0":
-  version "0.5.2"
-  resolved "https://registry.yarnpkg.com/@aki77/actions-replace-comment/-/actions-replace-comment-0.5.2.tgz#a36cacf7eb3df2d34812375cb4732b83816e205b"
-  integrity sha512-OvF8aEJvcDeDtymveYb0XEChoc1yQyDotOi9OyMhnsjeb8CyjwJ9Om42bq3JoFO6XD2yTGvMjEehF73qbtGWNg==
+"@aki77/actions-replace-comment@^0.5.3":
+  version "0.5.3"
+  resolved "https://registry.yarnpkg.com/@aki77/actions-replace-comment/-/actions-replace-comment-0.5.3.tgz#af82b3af41279087ae9755d0fcbe884017f8d063"
+  integrity sha512-pkYLe8ml5OsInZpuL30ZtpLRIZKtHqk+a1FbyjrKgI0xqDEpDWO4FbqoKoAicmx9M4yn+8BZ12ubxg7mwi6ZVw==
   dependencies:
     "@octokit/rest" "^18.0.0"
 
@@ -3694,14 +3694,7 @@ natural-compare@^1.4.0:
   resolved "https://registry.yarnpkg.com/natural-compare/-/natural-compare-1.4.0.tgz#4abebfeed7541f2c27acfb29bdbbd15c8d5ba4f7"
   integrity sha1-Sr6/7tdUHywnrPspvbvRXI1bpPc=
 
-node-fetch@^2.6.1:
-  version "2.6.7"
-  resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.7.tgz#24de9fba827e3b4ae44dc8b20256a379160052ad"
-  integrity sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==
-  dependencies:
-    whatwg-url "^5.0.0"
-
-node-fetch@^2.6.7:
+node-fetch@^2.6.1, node-fetch@^2.6.7:
   version "2.6.7"
   resolved "https://registry.yarnpkg.com/node-fetch/-/node-fetch-2.6.7.tgz#24de9fba827e3b4ae44dc8b20256a379160052ad"
   integrity sha512-ZjMPFEfVx5j+y2yF35Kzx5sF7kDzxuDj6ziH4FFbOp87zKDZNx8yExJIb05OGF4Nlt9IHFIMBkRl41VdvcNdbQ==

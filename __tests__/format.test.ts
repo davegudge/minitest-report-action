@@ -12,12 +12,12 @@ const { buildBaseUrl, formatFailureList } = await import('../src/format.js')
 
 const baseUrl = 'https://github.com/owner/repo/blob/abc123'
 
-const example = (overrides = {}) => ({
-  filePath: 'spec/models/foo_spec.rb',
+const failure = (overrides = {}) => ({
+  filePath: 'test/models/foo_test.rb',
   lineNumber: 18,
-  description: 'Foo is expected to be valid',
+  description: 'test_foo_is_valid',
   message: 'expected true\n     got: false',
-  backtrace: ["./spec/models/foo_spec.rb:18:in 'block (4 levels) in <main>'"],
+  backtrace: ["test/models/foo_test.rb:18:in 'test_foo_is_valid'"],
   ...overrides
 })
 
@@ -31,7 +31,7 @@ describe('formatFailureList', () => {
   test('keeps the message unprocessed (trimmed, newlines intact, no &nbsp;)', () => {
     const result = formatFailureList(
       [
-        example({
+        failure({
           message: '\nexpected: true\n     got: false\n\n(compared using ==)'
         })
       ],
@@ -44,28 +44,26 @@ describe('formatFailureList', () => {
   })
 
   test('renders a plain list line and a single details with linked heading and merged message/backtrace', () => {
-    const result = formatFailureList([example()], baseUrl)
+    const result = formatFailureList([failure()], baseUrl)
     // 初期表示はリンクなしのプレーン行（path:line description）
-    expect(result).toContain(
-      'spec/models/foo_spec.rb:18 Foo is expected to be valid'
-    )
+    expect(result).toContain('test/models/foo_test.rb:18 test_foo_is_valid')
     // details はちょうど 1 個
     expect(result.match(/<details>/g)?.length).toBe(1)
     expect(result).toContain('<details><summary>Details</summary>')
     // 見出しはリンク + description
     expect(result).toContain(
-      `### [spec/models/foo_spec.rb:18](${baseUrl}/spec/models/foo_spec.rb#L18) Foo is expected to be valid`
+      `### [test/models/foo_test.rb:18](${baseUrl}/test/models/foo_test.rb#L18) test_foo_is_valid`
     )
     // message と backtrace は同一コードブロック内に空行区切りで連結
     expect(result).toContain(
-      "expected true\n     got: false\n\n./spec/models/foo_spec.rb:18:in 'block (4 levels) in <main>'"
+      "expected true\n     got: false\n\ntest/models/foo_test.rb:18:in 'test_foo_is_valid'"
     )
   })
 
   test('keeps message and backtrace in a single code block (no extra block when backtrace empty)', () => {
-    const withBacktrace = formatFailureList([example()], baseUrl)
+    const withBacktrace = formatFailureList([failure()], baseUrl)
     const withoutBacktrace = formatFailureList(
-      [example({ backtrace: [] })],
+      [failure({ backtrace: [] })],
       baseUrl
     )
     expect(withoutBacktrace).toContain('expected true\n     got: false')
@@ -75,10 +73,10 @@ describe('formatFailureList', () => {
   })
 
   test('caps the list at the limit and reports the remaining count', () => {
-    const examples = Array.from({ length: 23 }, (_, i) =>
-      example({ lineNumber: i + 1 })
+    const failures = Array.from({ length: 23 }, (_, i) =>
+      failure({ lineNumber: i + 1 })
     )
-    const result = formatFailureList(examples, baseUrl, 20)
+    const result = formatFailureList(failures, baseUrl, 20)
     expect(result).toContain('... and 3 more failures')
     // details はまとめて 1 個
     expect(result.match(/<details>/g)?.length).toBe(1)
@@ -87,8 +85,8 @@ describe('formatFailureList', () => {
   })
 
   test('does not add the more-failures line within the limit', () => {
-    const examples = [example(), example({ lineNumber: 19 })]
-    const result = formatFailureList(examples, baseUrl, 20)
+    const failures = [failure(), failure({ lineNumber: 19 })]
+    const result = formatFailureList(failures, baseUrl, 20)
     expect(result).not.toContain('more failures')
   })
 })

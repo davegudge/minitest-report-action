@@ -5,113 +5,66 @@ import { parse } from '../src/parse.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-test('Parse rspec result json', async () => {
+test('parses a Minitest JSON result', async () => {
   const result = await parse([
     path.resolve(__dirname, '../.dummy_results-0.json')
   ])
+
   expect(result).toEqual({
-    summary: '10 examples, 3 failures',
-    examples: [
+    summary: '9 runs, 23 assertions, 2 failures, 1 error, 1 skip',
+    failures: [
       {
-        filePath: 'spec/models/user_spec.rb',
+        filePath: 'test/models/user_test.rb',
+        lineNumber: 25,
+        description:
+          'test_account_remains_confirmed_when_setting_an_unconfirmed_email_address',
+        message: 'Expected false to be truthy.',
+        backtrace: []
+      },
+      {
+        filePath: 'test/models/user_test.rb',
         lineNumber: 18,
-        description:
-          'User validations is expected to validate that :email cannot be empty',
-        message: '\nexpected: true\n     got: false\n\n(compared using ==)',
-        backtrace: [
-          "./spec/models/user_spec.rb:18:in `block (3 levels) in <top (required)>'",
-          "./app/models/user.rb:24:in `valid?'"
-        ]
-      },
-      {
-        filePath: 'spec/services/payment_service_spec.rb',
-        lineNumber: 42,
-        description:
-          'PaymentService#charge raises an error when the gateway is unreachable',
+        description: 'test_email_addresses_display',
         message:
-          'Payment gateway returned an unexpected response.\n\nThe gateway responded with HTTP 502 (Bad Gateway) while attempting to\nauthorize the charge. This usually means the upstream processor is\ntemporarily unavailable. Retrying the request did not resolve the issue\nwithin the configured timeout of 30 seconds.\n\nRequest ID: req_0123456789abcdef',
-        backtrace: [
-          "./spec/services/payment_service_spec.rb:42:in `block (2 levels) in <top (required)>'",
-          "./app/services/payment_service.rb:58:in `charge'",
-          "./lib/gateways/stripe_gateway.rb:31:in `authorize'"
-        ]
+          'Expected: "9876543213@domain.uk"\n  Actual: "987654321@domain.uk"',
+        backtrace: []
       },
       {
-        filePath: 'spec/requests/orders_spec.rb',
-        lineNumber: 73,
-        description: 'GET /orders calculates the total amount',
-        message: "undefined method `total_amount' for nil:NilClass",
+        filePath: 'test/services/payment_test.rb',
+        lineNumber: 42,
+        description: 'test_payment_gateway_timeout',
+        message: 'RuntimeError: payment gateway timed out',
         backtrace: [
-          "./spec/requests/orders_spec.rb:73:in `block (2 levels) in <top (required)>'",
-          "./app/controllers/orders_controller.rb:19:in `index'"
+          "test/services/payment_test.rb:42:in `test_payment_gateway_timeout'",
+          "app/services/payment_service.rb:18:in `charge'"
         ]
       }
     ],
-    success: false,
-    totalTime: 0.647017,
-    slowExamples: [
-      {
-        filePath: 'spec/services/payment_service_spec.rb',
-        lineNumber: 42,
-        description:
-          'PaymentService#charge raises an error when the gateway is unreachable',
-        runTime: 0.156789
-      },
-      {
-        filePath: 'spec/requests/orders_spec.rb',
-        lineNumber: 73,
-        description: 'GET /orders calculates the total amount',
-        runTime: 0.123456
-      },
-      {
-        filePath: 'spec/requests/orders_spec.rb',
-        lineNumber: 12,
-        description: 'GET /orders returns a list of orders',
-        runTime: 0.098765
-      },
-      {
-        filePath: 'spec/models/user_spec.rb',
-        lineNumber: 18,
-        description:
-          'User validations is expected to validate that :email cannot be empty',
-        runTime: 0.087654
-      },
-      {
-        filePath: 'spec/requests/orders_spec.rb',
-        lineNumber: 89,
-        description: 'GET /orders requires authentication',
-        runTime: 0.056789
-      },
-      {
-        filePath: 'spec/services/payment_service_spec.rb',
-        lineNumber: 67,
-        description: 'PaymentService#charge records the transaction',
-        runTime: 0.045678
-      },
-      {
-        filePath: 'spec/services/payment_service_spec.rb',
-        lineNumber: 21,
-        description: 'PaymentService#charge charges the customer',
-        runTime: 0.034567
-      },
-      {
-        filePath: 'spec/models/user_spec.rb',
-        lineNumber: 31,
-        description: 'User callbacks downcases the email before saving',
-        runTime: 0.021098
-      },
-      {
-        filePath: 'spec/models/user_spec.rb',
-        lineNumber: 8,
-        description: 'User with valid attributes is expected to be valid',
-        runTime: 0.012345
-      },
-      {
-        filePath: 'spec/models/order_spec.rb',
-        lineNumber: 6,
-        description: 'Order associations belongs to a user',
-        runTime: 0.009876
-      }
-    ]
+    success: false
+  })
+})
+
+test('aggregates multiple Minitest JSON results', async () => {
+  const result = await parse([
+    path.resolve(__dirname, '../.dummy_results-0.json'),
+    path.resolve(__dirname, '../.dummy_results-1.json')
+  ])
+
+  expect(result.summary).toBe(
+    '12 runs, 30 assertions, 2 failures, 1 error, 2 skips'
+  )
+  expect(result.failures).toHaveLength(3)
+  expect(result.success).toBe(false)
+})
+
+test('treats a run containing only skipped tests as successful', async () => {
+  const result = await parse([
+    path.resolve(__dirname, '../.dummy_results-1.json')
+  ])
+
+  expect(result).toEqual({
+    summary: '3 runs, 7 assertions, 0 failures, 0 errors, 1 skip',
+    failures: [],
+    success: true
   })
 })

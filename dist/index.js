@@ -64116,12 +64116,7 @@ var outExports = requireOut();
 var glob = /*@__PURE__*/getDefaultExportFromCjs(outExports);
 
 const MAX_BACKTRACE_LINES = 10;
-// Regex to exclude gem / ruby core paths (fallback for absolute-path backtraces).
 const NON_PROJECT_BACKTRACE = /[/\\](gems|ruby|\.rbenv|\.rvm|\.bundle|vendor[/\\]bundle)[/\\]/;
-// Extract only the project-local lines from a backtrace.
-// 1. Prefer project-root-relative paths (the CI default, starting with `./`).
-// 2. Otherwise, keep lines that are not gem / ruby core (fallback for absolute-path output).
-// 3. If still empty, return an empty array and the caller omits the backtrace section.
 function extractProjectBacktrace(backtrace) {
     const relative = backtrace.filter((line) => line.startsWith('./'));
     const lines = relative.length > 0
@@ -64129,57 +64124,77 @@ function extractProjectBacktrace(backtrace) {
         : backtrace.filter((line) => !NON_PROJECT_BACKTRACE.test(line));
     return lines.slice(0, MAX_BACKTRACE_LINES);
 }
+function normalizeFilePath(filePath) {
+    const workspace = process.env.GITHUB_WORKSPACE;
+    let normalized = filePath;
+    if (workspace && path$2.isAbsolute(normalized)) {
+        const relative = path$2.relative(workspace, normalized);
+        if (!relative.startsWith('..') && !path$2.isAbsolute(relative)) {
+            normalized = relative;
+        }
+    }
+    return normalized.replace(/^\.[/\\]/, '').replaceAll('\\', '/');
+}
+function failureLocation(failure) {
+    const match = failure.location.match(/^(.*):(\d+)$/);
+    if (match) {
+        return {
+            filePath: normalizeFilePath(match[1]),
+            lineNumber: Number(match[2])
+        };
+    }
+    return {
+        filePath: normalizeFilePath(failure.file),
+        lineNumber: failure.line_number
+    };
+}
 function pluralize(noun, count) {
     if (count === 1)
         return noun;
     return `${noun}s`;
 }
-function generateSummary(total, failed, pending) {
-    let summary = `${total} ${pluralize('example', total)}`;
-    summary += `, ${failed} ${pluralize('failure', failed)}`;
-    if (pending > 0) {
-        summary += `, ${pending} pending`;
-    }
-    return summary;
+function generateSummary(statistics) {
+    const { total, assertions, failures, errors, skips } = statistics;
+    return [
+        `${total} ${pluralize('run', total)}`,
+        `${assertions} ${pluralize('assertion', assertions)}`,
+        `${failures} ${pluralize('failure', failures)}`,
+        `${errors} ${pluralize('error', errors)}`,
+        `${skips} ${pluralize('skip', skips)}`
+    ].join(', ');
+}
+function addStatistics(total, current) {
+    return {
+        total: total.total + current.total,
+        assertions: total.assertions + current.assertions,
+        failures: total.failures + current.failures,
+        errors: total.errors + current.errors,
+        skips: total.skips + current.skips,
+        passes: total.passes + current.passes
+    };
 }
 async function parse(resultPaths) {
-    const promises = resultPaths.map(async (resultPath) => {
+    const results = await Promise.all(resultPaths.map(async (resultPath) => {
         return JSON.parse(await readFile(path$2.resolve(process.env.GITHUB_WORKSPACE, resultPath), 'utf-8'));
+    }));
+    const statistics = results.reduce((total, result) => addStatistics(total, result.statistics), {
+        total: 0,
+        assertions: 0,
+        failures: 0,
+        errors: 0,
+        skips: 0,
+        passes: 0
     });
-    const results = await Promise.all(promises);
-    const allExamples = results.reduce((acc, jsonResult) => acc.concat(jsonResult.examples), []);
-    const examples = allExamples
-        .filter(({ status }) => status === 'failed')
-        .map(({ file_path, line_number, full_description, exception }) => {
-        return {
-            description: full_description,
-            message: exception.message,
-            backtrace: extractProjectBacktrace(exception.backtrace ?? []),
-            filePath: file_path.replace(/^\.\//, ''),
-            lineNumber: line_number
-        };
-    });
-    const slowExamples = [...allExamples]
-        .sort((a, b) => b.run_time - a.run_time)
-        .slice(0, 10)
-        .map(({ file_path, line_number, full_description, run_time }) => {
-        return {
-            description: full_description,
-            filePath: file_path.replace(/^\.\//, ''),
-            lineNumber: line_number,
-            runTime: run_time
-        };
-    });
-    const totalExamples = allExamples.length;
-    const failedExamples = examples.length;
-    const pendingExamples = allExamples.filter((example) => example.pending_message !== null).length;
-    const totalTime = allExamples.reduce((total, { run_time }) => total + run_time, 0);
+    const failures = results.flatMap((result) => result.fails.map((failure) => ({
+        ...failureLocation(failure),
+        description: failure.name,
+        message: failure.message,
+        backtrace: extractProjectBacktrace(failure.backtrace ?? [])
+    })));
     return {
-        examples,
-        slowExamples,
-        summary: generateSummary(totalExamples, failedExamples, pendingExamples),
-        success: examples.length === 0,
-        totalTime
+        failures,
+        summary: generateSummary(statistics),
+        success: statistics.failures + statistics.errors === 0
     };
 }
 
@@ -64194,21 +64209,21 @@ const buildBaseUrl = () => {
 };
 const codeBlock = (content) => `\`\`\`\n${content}\n\`\`\``;
 // Label for a failure (path:line). Used both in list rows and details headings.
-const exampleLabel = ({ filePath, lineNumber }) => `${filePath}:${lineNumber}`;
+const failureLabel = ({ filePath, lineNumber }) => `${filePath}:${lineNumber}`;
 // Link URL to the failing source. Used in details headings.
-const exampleLink = (example, baseUrl) => `${baseUrl}/${example.filePath}#L${example.lineNumber}`;
+const failureLink = (failure, baseUrl) => `${baseUrl}/${failure.filePath}#L${failure.lineNumber}`;
 // A single line in the initial code block. Plain text with path:line and description, no link.
 // Being inside a code block, it carries no link and stays easy to copy & paste.
-// e.g. spec/models/foo_spec.rb:18 Foo is expected to be valid
-const formatListLine = (example) => `${exampleLabel(example)} ${example.description}`;
+// e.g. test/models/foo_test.rb:18 test_foo_is_valid
+const formatListLine = (failure) => `${failureLabel(failure)} ${failure.description}`;
 // Build the section for a single failure shown inside the details block.
 // It consists of a heading (source link + description) plus a single code block joining message and backtrace.
 // The message is emitted verbatim, only trimmed of surrounding whitespace (the old truncate / newline-to-space / &nbsp; replacement is dropped).
 // The backtrace follows below the message, separated by a blank line, only when project lines exist.
-const formatDetailSection = (example, baseUrl) => {
-    const { message, backtrace, description } = example;
-    const link = exampleLink(example, baseUrl);
-    const heading = `### [${exampleLabel(example)}](${link}) ${description}`;
+const formatDetailSection = (failure, baseUrl) => {
+    const { message, backtrace, description } = failure;
+    const link = failureLink(failure, baseUrl);
+    const heading = `### [${failureLabel(failure)}](${link}) ${description}`;
     const trimmedMessage = message.trim();
     const body = backtrace.length > 0
         ? `${trimmedMessage}\n\n${backtrace.join('\n')}`
@@ -64219,29 +64234,29 @@ const formatDetailSection = (example, baseUrl) => {
 // (A) A single code block listing failures and descriptions (no links, easy to copy).
 // (B) A single <details> block gathering all failure details (linked headings + message & backtrace).
 // The limit applies equally to both the list and the details; overflow is shown as a count only.
-const formatFailureList = (examples, baseUrl, limit = MAX_LIST_ITEMS) => {
-    const shown = examples.slice(0, limit);
-    const remaining = examples.length - shown.length;
+const formatFailureList = (failures, baseUrl, limit = MAX_LIST_ITEMS) => {
+    const shown = failures.slice(0, limit);
+    const remaining = failures.length - shown.length;
     const listLines = shown.map(formatListLine);
     if (remaining > 0) {
         listLines.push(`... and ${remaining} more failures`);
     }
     const list = codeBlock(listLines.join('\n'));
     const details = `<details><summary>Details</summary>\n\n${shown
-        .map((example) => formatDetailSection(example, baseUrl))
+        .map((failure) => formatDetailSection(failure, baseUrl))
         .join('\n\n')}\n\n</details>`;
     return `${list}\n\n${details}`;
 };
 
-const FOOTER_LINK = 'Reported by [rspec-report-action](https://github.com/SonicGarden/rspec-report-action)';
+const FOOTER_LINK = 'Reported by [minitest-report-action](https://github.com/davegudge/minitest-report-action)';
 const reportSummary = async (result) => {
-    const icon = result.success ? ':tada:' : ':cold_sweat:';
+    const icon = result.success ? ':white_check_mark:' : ':x:';
     const summary$1 = `${icon} ${result.summary}`;
     const hideFooterLink = getInput('hideFooterLink') === 'true';
     await summary
-        .addHeading('RSpec Result')
+        .addHeading('Minitest Result')
         .addRaw(summary$1)
-        .addRaw(`\n\n${formatFailureList(result.examples, buildBaseUrl())}\n`)
+        .addRaw(`\n\n${formatFailureList(result.failures, buildBaseUrl())}\n`)
         .addRaw(hideFooterLink ? '' : `\n${FOOTER_LINK}`)
         .write();
 };
@@ -66551,7 +66566,7 @@ function requireLib () {
 var libExports = requireLib();
 var replaceComment = /*@__PURE__*/getDefaultExportFromCjs(libExports);
 
-const commentGeneralOptions$1 = () => {
+const commentGeneralOptions = () => {
     const pullRequestId = githubExports.context.issue.number;
     if (!pullRequestId) {
         throw new Error('Cannot find the PR id.');
@@ -66567,69 +66582,19 @@ const reportComment = async (result) => {
     const title = getInput('title', { required: true });
     if (result.success) {
         await libExports.deleteComment({
-            ...commentGeneralOptions$1(),
+            ...commentGeneralOptions(),
             body: title,
             startsWith: true
         });
         return;
     }
     await replaceComment({
-        ...commentGeneralOptions$1(),
+        ...commentGeneralOptions(),
         body: `${title}
 
 ${result.summary}
 
-${formatFailureList(result.examples, buildBaseUrl())}
-`
-    });
-};
-
-const floor = (n, ndigits) => {
-    const shift = Math.pow(10, ndigits);
-    return Math.floor(n * shift) / shift;
-};
-
-async function examples2Table(examples) {
-    const { markdownTable } = await Promise.resolve().then(function () { return index; });
-    return markdownTable([
-        ['Example', 'Description', 'Time in seconds'],
-        ...examples.map(({ filePath, lineNumber, description, runTime }) => [
-            [filePath, lineNumber].join(':'),
-            description,
-            String(floor(runTime, 5))
-        ])
-    ]);
-}
-const commentGeneralOptions = () => {
-    const pullRequestId = githubExports.context.issue.number;
-    if (!pullRequestId) {
-        throw new Error('Cannot find the PR id.');
-    }
-    return {
-        token: getInput('token', { required: true }),
-        owner: githubExports.context.repo.owner,
-        repo: githubExports.context.repo.repo,
-        issue_number: pullRequestId
-    };
-};
-const slowestExamplesSummary = (result) => {
-    const totalTime = result.totalTime;
-    const slowTotalTime = result.slowExamples.reduce((total, { runTime }) => total + runTime, 0);
-    const percentage = (slowTotalTime / totalTime) * 100;
-    return `Top ${result.slowExamples.length} slowest examples (${floor(slowTotalTime, 2)} seconds, ${floor(percentage, 2)}% of total time)`;
-};
-const reportProfileComment = async (result) => {
-    const title = getInput('profileTitle', { required: true });
-    const summary = slowestExamplesSummary(result);
-    await replaceComment({
-        ...commentGeneralOptions(),
-        body: `${title}
-<details>
-<summary>${summary}</summary>
-
-${await examples2Table(result.slowExamples)}
-
-</details>
+${formatFailureList(result.failures, buildBaseUrl())}
 `
     });
 };
@@ -66655,7 +66620,6 @@ async function run() {
         }
         if (getInput('comment') === 'true' && githubExports.context.issue.number) {
             await reportComment(result);
-            await reportProfileComment(result);
         }
     }
     catch (error) {
@@ -66667,390 +66631,4 @@ async function run() {
 
 /* istanbul ignore next */
 run();
-
-/**
- * @typedef Options
- *   Configuration (optional).
- * @property {string|null|ReadonlyArray<string|null|undefined>} [align]
- *   One style for all columns, or styles for their respective columns.
- *   Each style is either `'l'` (left), `'r'` (right), or `'c'` (center).
- *   Other values are treated as `''`, which doesn’t place the colon in the
- *   alignment row but does align left.
- *   *Only the lowercased first character is used, so `Right` is fine.*
- * @property {boolean} [padding=true]
- *   Whether to add a space of padding between delimiters and cells.
- *
- *   When `true`, there is padding:
- *
- *   ```markdown
- *   | Alpha | B     |
- *   | ----- | ----- |
- *   | C     | Delta |
- *   ```
- *
- *   When `false`, there is no padding:
- *
- *   ```markdown
- *   |Alpha|B    |
- *   |-----|-----|
- *   |C    |Delta|
- *   ```
- * @property {boolean} [delimiterStart=true]
- *   Whether to begin each row with the delimiter.
- *
- *   > 👉 **Note**: please don’t use this: it could create fragile structures
- *   > that aren’t understandable to some markdown parsers.
- *
- *   When `true`, there are starting delimiters:
- *
- *   ```markdown
- *   | Alpha | B     |
- *   | ----- | ----- |
- *   | C     | Delta |
- *   ```
- *
- *   When `false`, there are no starting delimiters:
- *
- *   ```markdown
- *   Alpha | B     |
- *   ----- | ----- |
- *   C     | Delta |
- *   ```
- * @property {boolean} [delimiterEnd=true]
- *   Whether to end each row with the delimiter.
- *
- *   > 👉 **Note**: please don’t use this: it could create fragile structures
- *   > that aren’t understandable to some markdown parsers.
- *
- *   When `true`, there are ending delimiters:
- *
- *   ```markdown
- *   | Alpha | B     |
- *   | ----- | ----- |
- *   | C     | Delta |
- *   ```
- *
- *   When `false`, there are no ending delimiters:
- *
- *   ```markdown
- *   | Alpha | B
- *   | ----- | -----
- *   | C     | Delta
- *   ```
- * @property {boolean} [alignDelimiters=true]
- *   Whether to align the delimiters.
- *   By default, they are aligned:
- *
- *   ```markdown
- *   | Alpha | B     |
- *   | ----- | ----- |
- *   | C     | Delta |
- *   ```
- *
- *   Pass `false` to make them staggered:
- *
- *   ```markdown
- *   | Alpha | B |
- *   | - | - |
- *   | C | Delta |
- *   ```
- * @property {(value: string) => number} [stringLength]
- *   Function to detect the length of table cell content.
- *   This is used when aligning the delimiters (`|`) between table cells.
- *   Full-width characters and emoji mess up delimiter alignment when viewing
- *   the markdown source.
- *   To fix this, you can pass this function, which receives the cell content
- *   and returns its “visible” size.
- *   Note that what is and isn’t visible depends on where the text is displayed.
- *
- *   Without such a function, the following:
- *
- *   ```js
- *   markdownTable([
- *     ['Alpha', 'Bravo'],
- *     ['中文', 'Charlie'],
- *     ['👩‍❤️‍👩', 'Delta']
- *   ])
- *   ```
- *
- *   Yields:
- *
- *   ```markdown
- *   | Alpha | Bravo |
- *   | - | - |
- *   | 中文 | Charlie |
- *   | 👩‍❤️‍👩 | Delta |
- *   ```
- *
- *   With [`string-width`](https://github.com/sindresorhus/string-width):
- *
- *   ```js
- *   import stringWidth from 'string-width'
- *
- *   markdownTable(
- *     [
- *       ['Alpha', 'Bravo'],
- *       ['中文', 'Charlie'],
- *       ['👩‍❤️‍👩', 'Delta']
- *     ],
- *     {stringLength: stringWidth}
- *   )
- *   ```
- *
- *   Yields:
- *
- *   ```markdown
- *   | Alpha | Bravo   |
- *   | ----- | ------- |
- *   | 中文  | Charlie |
- *   | 👩‍❤️‍👩    | Delta   |
- *   ```
- */
-
-/**
- * @typedef {Options} MarkdownTableOptions
- * @todo
- *   Remove next major.
- */
-
-/**
- * Generate a markdown ([GFM](https://docs.github.com/en/github/writing-on-github/working-with-advanced-formatting/organizing-information-with-tables)) table..
- *
- * @param {ReadonlyArray<ReadonlyArray<string|null|undefined>>} table
- *   Table data (matrix of strings).
- * @param {Options} [options]
- *   Configuration (optional).
- * @returns {string}
- */
-function markdownTable(table, options = {}) {
-  const align = (options.align || []).concat();
-  const stringLength = options.stringLength || defaultStringLength;
-  /** @type {Array<number>} Character codes as symbols for alignment per column. */
-  const alignments = [];
-  /** @type {Array<Array<string>>} Cells per row. */
-  const cellMatrix = [];
-  /** @type {Array<Array<number>>} Sizes of each cell per row. */
-  const sizeMatrix = [];
-  /** @type {Array<number>} */
-  const longestCellByColumn = [];
-  let mostCellsPerRow = 0;
-  let rowIndex = -1;
-
-  // This is a superfluous loop if we don’t align delimiters, but otherwise we’d
-  // do superfluous work when aligning, so optimize for aligning.
-  while (++rowIndex < table.length) {
-    /** @type {Array<string>} */
-    const row = [];
-    /** @type {Array<number>} */
-    const sizes = [];
-    let columnIndex = -1;
-
-    if (table[rowIndex].length > mostCellsPerRow) {
-      mostCellsPerRow = table[rowIndex].length;
-    }
-
-    while (++columnIndex < table[rowIndex].length) {
-      const cell = serialize(table[rowIndex][columnIndex]);
-
-      if (options.alignDelimiters !== false) {
-        const size = stringLength(cell);
-        sizes[columnIndex] = size;
-
-        if (
-          longestCellByColumn[columnIndex] === undefined ||
-          size > longestCellByColumn[columnIndex]
-        ) {
-          longestCellByColumn[columnIndex] = size;
-        }
-      }
-
-      row.push(cell);
-    }
-
-    cellMatrix[rowIndex] = row;
-    sizeMatrix[rowIndex] = sizes;
-  }
-
-  // Figure out which alignments to use.
-  let columnIndex = -1;
-
-  if (typeof align === 'object' && 'length' in align) {
-    while (++columnIndex < mostCellsPerRow) {
-      alignments[columnIndex] = toAlignment(align[columnIndex]);
-    }
-  } else {
-    const code = toAlignment(align);
-
-    while (++columnIndex < mostCellsPerRow) {
-      alignments[columnIndex] = code;
-    }
-  }
-
-  // Inject the alignment row.
-  columnIndex = -1;
-  /** @type {Array<string>} */
-  const row = [];
-  /** @type {Array<number>} */
-  const sizes = [];
-
-  while (++columnIndex < mostCellsPerRow) {
-    const code = alignments[columnIndex];
-    let before = '';
-    let after = '';
-
-    if (code === 99 /* `c` */) {
-      before = ':';
-      after = ':';
-    } else if (code === 108 /* `l` */) {
-      before = ':';
-    } else if (code === 114 /* `r` */) {
-      after = ':';
-    }
-
-    // There *must* be at least one hyphen-minus in each alignment cell.
-    let size =
-      options.alignDelimiters === false
-        ? 1
-        : Math.max(
-            1,
-            longestCellByColumn[columnIndex] - before.length - after.length
-          );
-
-    const cell = before + '-'.repeat(size) + after;
-
-    if (options.alignDelimiters !== false) {
-      size = before.length + size + after.length;
-
-      if (size > longestCellByColumn[columnIndex]) {
-        longestCellByColumn[columnIndex] = size;
-      }
-
-      sizes[columnIndex] = size;
-    }
-
-    row[columnIndex] = cell;
-  }
-
-  // Inject the alignment row.
-  cellMatrix.splice(1, 0, row);
-  sizeMatrix.splice(1, 0, sizes);
-
-  rowIndex = -1;
-  /** @type {Array<string>} */
-  const lines = [];
-
-  while (++rowIndex < cellMatrix.length) {
-    const row = cellMatrix[rowIndex];
-    const sizes = sizeMatrix[rowIndex];
-    columnIndex = -1;
-    /** @type {Array<string>} */
-    const line = [];
-
-    while (++columnIndex < mostCellsPerRow) {
-      const cell = row[columnIndex] || '';
-      let before = '';
-      let after = '';
-
-      if (options.alignDelimiters !== false) {
-        const size =
-          longestCellByColumn[columnIndex] - (sizes[columnIndex] || 0);
-        const code = alignments[columnIndex];
-
-        if (code === 114 /* `r` */) {
-          before = ' '.repeat(size);
-        } else if (code === 99 /* `c` */) {
-          if (size % 2) {
-            before = ' '.repeat(size / 2 + 0.5);
-            after = ' '.repeat(size / 2 - 0.5);
-          } else {
-            before = ' '.repeat(size / 2);
-            after = before;
-          }
-        } else {
-          after = ' '.repeat(size);
-        }
-      }
-
-      if (options.delimiterStart !== false && !columnIndex) {
-        line.push('|');
-      }
-
-      if (
-        options.padding !== false &&
-        // Don’t add the opening space if we’re not aligning and the cell is
-        // empty: there will be a closing space.
-        !(options.alignDelimiters === false && cell === '') &&
-        (options.delimiterStart !== false || columnIndex)
-      ) {
-        line.push(' ');
-      }
-
-      if (options.alignDelimiters !== false) {
-        line.push(before);
-      }
-
-      line.push(cell);
-
-      if (options.alignDelimiters !== false) {
-        line.push(after);
-      }
-
-      if (options.padding !== false) {
-        line.push(' ');
-      }
-
-      if (
-        options.delimiterEnd !== false ||
-        columnIndex !== mostCellsPerRow - 1
-      ) {
-        line.push('|');
-      }
-    }
-
-    lines.push(
-      options.delimiterEnd === false
-        ? line.join('').replace(/ +$/, '')
-        : line.join('')
-    );
-  }
-
-  return lines.join('\n')
-}
-
-/**
- * @param {string|null|undefined} [value]
- * @returns {string}
- */
-function serialize(value) {
-  return value === null || value === undefined ? '' : String(value)
-}
-
-/**
- * @param {string} value
- * @returns {number}
- */
-function defaultStringLength(value) {
-  return value.length
-}
-
-/**
- * @param {string|null|undefined} value
- * @returns {number}
- */
-function toAlignment(value) {
-  const code = typeof value === 'string' ? value.codePointAt(0) : 0;
-
-  return code === 67 /* `C` */ || code === 99 /* `c` */
-    ? 99 /* `c` */
-    : code === 76 /* `L` */ || code === 108 /* `l` */
-    ? 108 /* `l` */
-    : code === 82 /* `R` */ || code === 114 /* `r` */
-    ? 114 /* `r` */
-    : 0
-}
-
-var index = /*#__PURE__*/Object.freeze({
-    __proto__: null,
-    markdownTable: markdownTable
-});
 //# sourceMappingURL=index.js.map

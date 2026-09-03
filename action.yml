@@ -1,20 +1,20 @@
-name: 'RSpec Report'
-description: 'A GitHub Action that report RSpec failure.'
+name: 'Minitest Report'
+description: 'A GitHub Action that reports Minitest failures.'
 branding:
   icon: alert-triangle
   color: red
-author: 'aki77'
+author: 'davegudge'
 inputs:
   token:
     description: 'Github token'
     required: false
     default: '${{ github.token }}'
   json-path:
-    description: 'JSON File path'
+    description: 'Path or glob pattern for Minitest JSON result files'
     required: true
   title:
     description: 'Title'
-    default: '# :cold_sweat: RSpec failure'
+    default: '# :x: Minitest failure'
     required: false
   hideFooterLink:
     description: 'Hide footer link'
@@ -23,10 +23,6 @@ inputs:
   comment:
     description: 'Set this if want to comment report to pull request'
     default: 'true'
-    required: false
-  profileTitle:
-    description: 'Title for profile'
-    default: '# Slowest examples'
     required: false
 runs:
   using: 'node24'

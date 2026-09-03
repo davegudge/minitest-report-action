@@ -1,6 +1,6 @@
 import * as core from '@actions/core'
 import * as github from '@actions/github'
-import type { RspecResult } from './parse.js'
+import type { MinitestResult } from './parse.js'
 import { buildBaseUrl, formatFailureList } from './format.js'
 import replaceComment, { deleteComment } from '@aki77/actions-replace-comment'
 
@@ -25,7 +25,7 @@ const commentGeneralOptions = (): CommentGeneralOptions => {
   }
 }
 
-export const reportComment = async (result: RspecResult): Promise<void> => {
+export const reportComment = async (result: MinitestResult): Promise<void> => {
   const title = core.getInput('title', { required: true })
 
   if (result.success) {
@@ -43,7 +43,7 @@ export const reportComment = async (result: RspecResult): Promise<void> => {
 
 ${result.summary}
 
-${formatFailureList(result.examples, buildBaseUrl())}
+${formatFailureList(result.failures, buildBaseUrl())}
 `
   })
 }

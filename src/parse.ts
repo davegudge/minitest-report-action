@@ -1,30 +1,34 @@
 import path from 'node:path'
 import { readFile } from 'node:fs/promises'
 
-interface Exception {
-  class: string
-  message: string
-  backtrace: string[]
+interface Statistics {
+  total: number
+  assertions: number
+  failures: number
+  errors: number
+  skips: number
+  passes: number
 }
 
-interface Example {
-  id: string
-  description: string
-  full_description: string
-  status: 'passed' | 'failed'
-  file_path: string
+interface Failure {
+  type: 'failed' | 'error'
+  class: string
+  name: string
+  assertions: number
+  time: number
+  file: string
   line_number: number
-  run_time: number
-  pending_message: string | null
-  exception?: Exception
+  message: string
+  location: string
+  backtrace?: string[]
 }
 
 interface JsonResult {
-  examples: Example[]
-  summary_line: string
+  statistics: Statistics
+  fails: Failure[]
 }
 
-type FailureExample = {
+type FailureOutput = {
   filePath: string
   lineNumber: number
   description: string
@@ -32,31 +36,17 @@ type FailureExample = {
   backtrace: string[]
 }
 
-type SlowExample = {
-  filePath: string
-  lineNumber: number
-  description: string
-  runTime: number
-}
-
-export type RspecResult = {
-  examples: FailureExample[]
-  slowExamples: SlowExample[]
+export type MinitestResult = {
+  failures: FailureOutput[]
   summary: string
   success: boolean
-  totalTime: number
 }
 
 const MAX_BACKTRACE_LINES = 10
 
-// Regex to exclude gem / ruby core paths (fallback for absolute-path backtraces).
 const NON_PROJECT_BACKTRACE =
   /[/\\](gems|ruby|\.rbenv|\.rvm|\.bundle|vendor[/\\]bundle)[/\\]/
 
-// Extract only the project-local lines from a backtrace.
-// 1. Prefer project-root-relative paths (the CI default, starting with `./`).
-// 2. Otherwise, keep lines that are not gem / ruby core (fallback for absolute-path output).
-// 3. If still empty, return an empty array and the caller omits the backtrace section.
 function extractProjectBacktrace(backtrace: string[]): string[] {
   const relative = backtrace.filter((line) => line.startsWith('./'))
   const lines =
@@ -66,76 +56,101 @@ function extractProjectBacktrace(backtrace: string[]): string[] {
   return lines.slice(0, MAX_BACKTRACE_LINES)
 }
 
+function normalizeFilePath(filePath: string): string {
+  const workspace = process.env.GITHUB_WORKSPACE
+  let normalized = filePath
+
+  if (workspace && path.isAbsolute(normalized)) {
+    const relative = path.relative(workspace, normalized)
+    if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+      normalized = relative
+    }
+  }
+
+  return normalized.replace(/^\.[/\\]/, '').replaceAll('\\', '/')
+}
+
+function failureLocation(failure: Failure): {
+  filePath: string
+  lineNumber: number
+} {
+  const match = failure.location.match(/^(.*):(\d+)$/)
+  if (match) {
+    return {
+      filePath: normalizeFilePath(match[1]),
+      lineNumber: Number(match[2])
+    }
+  }
+
+  return {
+    filePath: normalizeFilePath(failure.file),
+    lineNumber: failure.line_number
+  }
+}
+
 function pluralize(noun: string, count: number): string {
   if (count === 1) return noun
   return `${noun}s`
 }
 
-function generateSummary(
-  total: number,
-  failed: number,
-  pending: number
-): string {
-  let summary = `${total} ${pluralize('example', total)}`
-  summary += `, ${failed} ${pluralize('failure', failed)}`
-  if (pending > 0) {
-    summary += `, ${pending} pending`
-  }
-  return summary
+function generateSummary(statistics: Statistics): string {
+  const { total, assertions, failures, errors, skips } = statistics
+  return [
+    `${total} ${pluralize('run', total)}`,
+    `${assertions} ${pluralize('assertion', assertions)}`,
+    `${failures} ${pluralize('failure', failures)}`,
+    `${errors} ${pluralize('error', errors)}`,
+    `${skips} ${pluralize('skip', skips)}`
+  ].join(', ')
 }
 
-export async function parse(resultPaths: string[]): Promise<RspecResult> {
-  const promises = resultPaths.map(async (resultPath) => {
-    return JSON.parse(
-      await readFile(
-        path.resolve(process.env.GITHUB_WORKSPACE!, resultPath),
-        'utf-8'
-      )
-    ) as JsonResult
-  })
-  const results = await Promise.all(promises)
+function addStatistics(total: Statistics, current: Statistics): Statistics {
+  return {
+    total: total.total + current.total,
+    assertions: total.assertions + current.assertions,
+    failures: total.failures + current.failures,
+    errors: total.errors + current.errors,
+    skips: total.skips + current.skips,
+    passes: total.passes + current.passes
+  }
+}
 
-  const allExamples = results.reduce(
-    (acc, jsonResult) => acc.concat(jsonResult.examples),
-    [] as Example[]
+export async function parse(resultPaths: string[]): Promise<MinitestResult> {
+  const results = await Promise.all(
+    resultPaths.map(async (resultPath) => {
+      return JSON.parse(
+        await readFile(
+          path.resolve(process.env.GITHUB_WORKSPACE!, resultPath),
+          'utf-8'
+        )
+      ) as JsonResult
+    })
   )
-  const examples: FailureExample[] = allExamples
-    .filter(({ status }) => status === 'failed')
-    .map(({ file_path, line_number, full_description, exception }) => {
-      return {
-        description: full_description,
-        message: exception!.message,
-        backtrace: extractProjectBacktrace(exception!.backtrace ?? []),
-        filePath: file_path.replace(/^\.\//, ''),
-        lineNumber: line_number
-      }
-    })
-  const slowExamples: SlowExample[] = [...allExamples]
-    .sort((a, b) => b.run_time - a.run_time)
-    .slice(0, 10)
-    .map(({ file_path, line_number, full_description, run_time }) => {
-      return {
-        description: full_description,
-        filePath: file_path.replace(/^\.\//, ''),
-        lineNumber: line_number,
-        runTime: run_time
-      }
-    })
-  const totalExamples = allExamples.length
-  const failedExamples = examples.length
-  const pendingExamples = allExamples.filter(
-    (example) => example.pending_message !== null
-  ).length
-  const totalTime = allExamples.reduce(
-    (total, { run_time }) => total + run_time,
-    0
+
+  const statistics = results.reduce(
+    (total, result) => addStatistics(total, result.statistics),
+    {
+      total: 0,
+      assertions: 0,
+      failures: 0,
+      errors: 0,
+      skips: 0,
+      passes: 0
+    }
+  )
+
+  const failures = results.flatMap((result) =>
+    result.fails.map((failure) => ({
+      ...failureLocation(failure),
+      description: failure.name,
+      message: failure.message,
+      backtrace: extractProjectBacktrace(failure.backtrace ?? [])
+    }))
   )
 
   return {
-    examples,
-    slowExamples,
-    summary: generateSummary(totalExamples, failedExamples, pendingExamples),
-    success: examples.length === 0,
-    totalTime
+    failures,
+    summary: generateSummary(statistics),
+    success: statistics.failures + statistics.errors === 0
   }
 }

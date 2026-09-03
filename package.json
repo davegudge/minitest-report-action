@@ -1,9 +1,9 @@
 {
-  "name": "rspec-report-action",
+  "name": "minitest-report-action",
   "version": "8.0.0",
   "private": true,
   "type": "module",
-  "description": "A GitHub Action that report RSpec failure.",
+  "description": "A GitHub Action that reports Minitest failures.",
   "main": "dist/index.js",
   "exports": {
     ".": "./dist/index.js"
@@ -22,21 +22,20 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SonicGarden/rspec-report-action.git"
+    "url": "git+https://github.com/davegudge/minitest-report-action.git"
   },
   "keywords": [
     "actions",
     "node",
     "setup"
   ],
-  "author": "aki77",
+  "author": "davegudge",
   "license": "MIT",
   "dependencies": {
     "@actions/core": "^3.0.0",
     "@actions/github": "^6.0.0",
     "@aki77/actions-replace-comment": "0.6.1",
-    "fast-glob": "^3.3.2",
-    "markdown-table": "^3.0.3"
+    "fast-glob": "^3.3.2"
   },
   "devDependencies": {
     "@eslint/compat": "^2.0.2",

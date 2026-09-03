@@ -1,112 +1,74 @@
-# RSpec Report
+# Minitest Report
 
-A GitHub Action that report RSpec failure.
+A GitHub Action that reports Minitest failures in the job summary and,
+optionally, as a pull request comment.
 
-## Usage:
+The report lists failed tests in a copy-friendly code block. A details section
+then shows each failure message, a link to the failing line, and a project-local
+backtrace when the reporter provides one. Up to 20 failures are shown; any
+remaining failures are summarized as a count.
 
-Reported in Job Summary (and as a pull request comment when `comment` is
-enabled).
+## Producing the JSON report
 
-The report lists every failed example up front in a single code block
-(`spec/foo_spec.rb:37 description`), so you can grasp the failures at a glance
-and copy them easily. All failures are then collected into a single `Details`
-block, each with a linked heading, the original failure message (kept as-is)
-and, when available, the project-local backtrace lines (gem / Ruby internals are
-excluded; omitted when none are found). Up to 20 examples are listed; any
-remainder is summarized as `... and N more failures`.
+Minitest does not include a file-based JSON reporter. Add the reporter fork to
+your `Gemfile`:
 
-![Demo](https://i.gyazo.com/719266d3b7fda14b6291a4b1617fd4d8.png)
+```ruby
+gem "minitest-reporters-json_reporter",
+  github: "davegudge/minitest-reporters-json_reporter",
+  branch: "write-to-file"
+```
 
-### Inputs
+Configure it in `test_helper.rb` (or `spec_helper.rb`):
 
-See [action.yml](action.yml)
+```ruby
+require "minitest/reporters/json_reporter"
 
-| Name             | Description                                                | Default                        | Required |
-| ---------------- | ---------------------------------------------------------- | ------------------------------ | -------- |
-| `json-path`      | Path to RSpec result json file. (Support for glob pattern) |                                | yes      |
-| `token`          | GITHUB_TOKEN                                               | `${{ github.token }}`          | no       |
-| `title`          | Summary title                                              | `# :cold_sweat: RSpec failure` | no       |
-| `hideFooterLink` | Hide footer link                                           | `false`                        | no       |
-| `comment`        | Set this if want to comment report to pull request         | `true`                         | no       |
+Minitest::Reporters.use! [
+  Minitest::Reporters::JsonReporter.new(reports_dir: "tmp/minitest")
+]
+```
+
+The reporter writes the result to `tmp/minitest/output.json`.
+
+## Inputs
+
+| Name             | Description                                         | Default                  | Required |
+| ---------------- | --------------------------------------------------- | ------------------------ | -------- |
+| `json-path`      | Path or glob pattern for Minitest JSON result files |                          | yes      |
+| `token`          | GitHub token                                        | `${{ github.token }}`    | no       |
+| `title`          | Pull request comment title                          | `# :x: Minitest failure` | no       |
+| `hideFooterLink` | Hide the action link in the job summary             | `false`                  | no       |
+| `comment`        | Add or update a report comment on pull requests     | `true`                   | no       |
 
 ## Example
 
 ```yaml
-name: Build
+name: Test
 on:
   pull_request:
 
+permissions:
+  contents: read
+  pull-requests: write
+
 jobs:
-  rspec:
+  test:
+    runs-on: ubuntu-latest
     steps:
-      # setup...
+      - uses: actions/checkout@v6
 
-      - name: Test
-        run: bundle exec rspec -f j -o tmp/rspec_results.json -f p
+      # Set up Ruby and install the bundle here.
 
-      - name: RSpec Report
-        uses: SonicGarden/rspec-report-action@v8
+      - name: Run Minitest
+        run: bin/rails test
+
+      - name: Minitest Report
+        uses: davegudge/minitest-report-action@v8
         with:
-          json-path: tmp/rspec_results.json
+          json-path: tmp/minitest/output.json
         if: always()
 ```
 
-## Parallel Test Example
-
-```yaml
-name: Build
-on:
-  pull_request:
-
-jobs:
-  rspec:
-    strategy:
-      fail-fast: false
-      matrix:
-        ci_node_index: [0, 1]
-        ci_node_total: [2]
-    steps:
-      # setup...
-
-      # Recommend using `r7kamura/split-tests-by-timings`.
-      - id: split-tests
-        run: |
-          PATHS=$(
-            find spec -type f -name '*_spec.rb' | \
-              xargs wc -l | \
-              head -n -1 | \
-              sort -n | \
-              awk -v node=${{ matrix.ci_node_index }} -v total=${{ matrix.ci_node_total }} 'NR % total == node {print $2}' | \
-              tr '\n' ' '
-          )
-          echo "paths=$PATHS" >> "$GITHUB_OUTPUT"
-        shell: bash
-
-      - name: Test
-        run: |
-          bundle exec rspec \
-            -f j -o tmp/json-reports/rspec_results-${{ matrix.ci_node_index }}.json \
-            -f p \
-            ${{ steps.split-tests.outputs.paths }}
-      - uses: actions/upload-artifact@v4
-        with:
-          if-no-files-found: error
-          name: json-reports-${{ matrix.ci_node_index }}
-          path: tmp/json-reports
-        if: always()
-
-  report-rspec:
-    needs: rspec
-    if: always()
-    steps:
-      - name: Download all rspec results
-        uses: actions/download-artifact@v4
-        with:
-          pattern: json-reports-*
-          path: /tmp/json-reports
-          merge-multiple: true
-      - name: RSpec Report
-        uses: SonicGarden/rspec-report-action@v8
-        with:
-          json-path: /tmp/json-reports/rspec_results-*.json
-```
+Set `comment: false` if you only want the job summary. Glob patterns such as
+`tmp/minitest/**/*.json` can combine results produced by parallel test jobs.

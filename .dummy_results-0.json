@@ -1,142 +1,51 @@
 {
-  "version": "3.9.2",
-  "examples": [
-    {
-      "id": "./spec/models/user_spec.rb[1:1:1]",
-      "description": "is expected to be valid",
-      "full_description": "User with valid attributes is expected to be valid",
-      "status": "passed",
-      "file_path": "./spec/models/user_spec.rb",
-      "line_number": 8,
-      "run_time": 0.012345,
-      "pending_message": null
-    },
-    {
-      "id": "./spec/models/user_spec.rb[1:2:1]",
-      "description": "is expected to validate that :email cannot be empty",
-      "full_description": "User validations is expected to validate that :email cannot be empty",
-      "status": "failed",
-      "file_path": "./spec/models/user_spec.rb",
-      "line_number": 18,
-      "run_time": 0.087654,
-      "pending_message": null,
-      "exception": {
-        "class": "RSpec::Expectations::ExpectationNotMetError",
-        "message": "\nexpected: true\n     got: false\n\n(compared using ==)",
-        "backtrace": [
-          "./spec/models/user_spec.rb:18:in `block (3 levels) in <top (required)>'",
-          "./app/models/user.rb:24:in `valid?'",
-          "/usr/local/bundle/gems/rspec-core-3.9.2/lib/rspec/core/example.rb:257:in `instance_exec'",
-          "/usr/local/bundle/gems/rspec-core-3.9.2/lib/rspec/core/example.rb:257:in `block in run'"
-        ]
-      }
-    },
-    {
-      "id": "./spec/services/payment_service_spec.rb[1:1:1]",
-      "description": "charges the customer",
-      "full_description": "PaymentService#charge charges the customer",
-      "status": "passed",
-      "file_path": "./spec/services/payment_service_spec.rb",
-      "line_number": 21,
-      "run_time": 0.034567,
-      "pending_message": null
-    },
-    {
-      "id": "./spec/services/payment_service_spec.rb[1:2:1]",
-      "description": "raises an error when the gateway is unreachable",
-      "full_description": "PaymentService#charge raises an error when the gateway is unreachable",
-      "status": "failed",
-      "file_path": "./spec/services/payment_service_spec.rb",
-      "line_number": 42,
-      "run_time": 0.156789,
-      "pending_message": null,
-      "exception": {
-        "class": "RuntimeError",
-        "message": "Payment gateway returned an unexpected response.\n\nThe gateway responded with HTTP 502 (Bad Gateway) while attempting to\nauthorize the charge. This usually means the upstream processor is\ntemporarily unavailable. Retrying the request did not resolve the issue\nwithin the configured timeout of 30 seconds.\n\nRequest ID: req_0123456789abcdef",
-        "backtrace": [
-          "./spec/services/payment_service_spec.rb:42:in `block (2 levels) in <top (required)>'",
-          "./app/services/payment_service.rb:58:in `charge'",
-          "./lib/gateways/stripe_gateway.rb:31:in `authorize'",
-          "/usr/local/bundle/gems/rspec-core-3.9.2/lib/rspec/core/example.rb:257:in `instance_exec'"
-        ]
-      }
-    },
-    {
-      "id": "./spec/requests/orders_spec.rb[1:1:1]",
-      "description": "returns a list of orders",
-      "full_description": "GET /orders returns a list of orders",
-      "status": "passed",
-      "file_path": "./spec/requests/orders_spec.rb",
-      "line_number": 12,
-      "run_time": 0.098765,
-      "pending_message": null
-    },
-    {
-      "id": "./spec/requests/orders_spec.rb[1:2:1]",
-      "description": "calculates the total amount",
-      "full_description": "GET /orders calculates the total amount",
-      "status": "failed",
-      "file_path": "./spec/requests/orders_spec.rb",
-      "line_number": 73,
-      "run_time": 0.123456,
-      "pending_message": null,
-      "exception": {
-        "class": "NoMethodError",
-        "message": "undefined method `total_amount' for nil:NilClass",
-        "backtrace": [
-          "./spec/requests/orders_spec.rb:73:in `block (2 levels) in <top (required)>'",
-          "./app/controllers/orders_controller.rb:19:in `index'",
-          "/usr/local/bundle/gems/actionpack-6.1.4/lib/action_controller/metal/basic_implicit_render.rb:6:in `send_action'"
-        ]
-      }
-    },
-    {
-      "id": "./spec/models/user_spec.rb[1:3:1]",
-      "description": "downcases the email before saving",
-      "full_description": "User callbacks downcases the email before saving",
-      "status": "passed",
-      "file_path": "./spec/models/user_spec.rb",
-      "line_number": 31,
-      "run_time": 0.021098,
-      "pending_message": null
-    },
-    {
-      "id": "./spec/services/payment_service_spec.rb[1:3:1]",
-      "description": "records the transaction",
-      "full_description": "PaymentService#charge records the transaction",
-      "status": "passed",
-      "file_path": "./spec/services/payment_service_spec.rb",
-      "line_number": 67,
-      "run_time": 0.045678,
-      "pending_message": null
-    },
-    {
-      "id": "./spec/requests/orders_spec.rb[1:3:1]",
-      "description": "requires authentication",
-      "full_description": "GET /orders requires authentication",
-      "status": "passed",
-      "file_path": "./spec/requests/orders_spec.rb",
-      "line_number": 89,
-      "run_time": 0.056789,
-      "pending_message": null
-    },
-    {
-      "id": "./spec/models/order_spec.rb[1:1:1]",
-      "description": "belongs to a user",
-      "full_description": "Order associations belongs to a user",
-      "status": "passed",
-      "file_path": "./spec/models/order_spec.rb",
-      "line_number": 6,
-      "run_time": 0.009876,
-      "pending_message": null
-    }
-  ],
-  "summary": {
-    "duration": 0.646815,
-    "example_count": 10,
-    "failure_count": 3,
-    "pending_count": 0,
-    "errors_outside_of_examples_count": 0
+  "status": { "code": "Failed", "color": "red" },
+  "statistics": {
+    "total": 9,
+    "assertions": 23,
+    "failures": 2,
+    "errors": 1,
+    "skips": 1,
+    "passes": 5
   },
-  "summary_line": "10 examples, 3 failures"
+  "fails": [
+    {
+      "type": "failed",
+      "class": "UserTest",
+      "name": "test_account_remains_confirmed_when_setting_an_unconfirmed_email_address",
+      "assertions": 2,
+      "time": 0.002908,
+      "file": "test/models/user_test.rb",
+      "line_number": 21,
+      "message": "Expected false to be truthy.",
+      "location": "test/models/user_test.rb:25"
+    },
+    {
+      "type": "failed",
+      "class": "UserTest",
+      "name": "test_email_addresses_display",
+      "assertions": 1,
+      "time": 0.188711,
+      "file": "test/models/user_test.rb",
+      "line_number": 16,
+      "message": "Expected: \"9876543213@domain.uk\"\n  Actual: \"987654321@domain.uk\"",
+      "location": "./test/models/user_test.rb:18"
+    },
+    {
+      "type": "error",
+      "class": "PaymentTest",
+      "name": "test_payment_gateway_timeout",
+      "assertions": 0,
+      "time": 0.102,
+      "file": "test/services/payment_test.rb",
+      "line_number": 42,
+      "message": "RuntimeError: payment gateway timed out",
+      "location": "test/services/payment_test.rb:42",
+      "backtrace": [
+        "test/services/payment_test.rb:42:in `test_payment_gateway_timeout'",
+        "app/services/payment_service.rb:18:in `charge'",
+        "/opt/ruby/gems/minitest-5.0.0/lib/minitest/test.rb:95:in `block'"
+      ]
+    }
+  ]
 }
